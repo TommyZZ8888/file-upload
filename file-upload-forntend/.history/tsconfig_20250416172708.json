@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".", // 确保添加了 baseUrl
+    "paths": {
+      "@/*": ["src/*"]
+    },
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "esModuleInterop": true, // 如果之前没有，请添加此行
+    "skipLibCheck": true,
+    "types": ["vite/client"],
+    "moduleResolution": "node",
+    "allowJs": true,
+    "jsx": "preserve"
+  },
+  "files": ["src/**/*"],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}

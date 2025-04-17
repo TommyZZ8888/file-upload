@@ -1,0 +1,22 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:mysql://localhost:3306/test?useUnicode=true&characterEncoding=UTF8&serverTimezone=Asia/Shanghai
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+  main:
+    allow-bean-definition-overriding: true
+
+storage:
+  minio:
+    access-key: FyAml5B0GIHX9SL548jq
+    endpoint: http://localhost:9000
+    secret-key: NCsn9jpLENEAMeOYSSS7GRr7b3DihUVmVzUrd1CD
+    bucket: images
