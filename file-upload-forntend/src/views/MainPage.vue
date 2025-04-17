@@ -13,15 +13,24 @@
         >
           <div class="menu-icon">☰</div>
           <div v-show="showMenu" class="dropdown-menu">
-            <div class="menu-item" v-if="isAdmin" @click="openSettings">
+            <div class="menu-item" @click="openSettings">
               上传设置
             </div>
-            <div class="menu-item" v-if="isAdmin" @click="openStorageConfig">
+            <div class="menu-item"  @click="openStorageConfig">
               存储配置
             </div>
-            <div class="menu-item" v-if="isAdmin" @click="openPasswordConfig">
+            <div class="menu-item"  @click="openPasswordConfig">
               密码设置
             </div>
+<!--            <div class="menu-item" v-if="isAdmin" @click="openSettings">-->
+<!--              上传设置-->
+<!--            </div>-->
+<!--            <div class="menu-item" v-if="isAdmin" @click="openStorageConfig">-->
+<!--              存储配置-->
+<!--            </div>-->
+<!--            <div class="menu-item" v-if="isAdmin" @click="openPasswordConfig">-->
+<!--              密码设置-->
+<!--            </div>-->
             <div class="menu-item" @click="openAbout">关于</div>
           </div>
         </div>
@@ -137,9 +146,9 @@ const filteredTabs = computed<Tab[]>(() => {
     { label: "OBS", value: "obs" },
     { label: "QiNiu", value: "qiniu" },
     { label: "共享文件", value: "shared" },
-    ...(isAdmin.value ? [{ label: "已上传文件", value: "gallery" }] : []),
+    { label: "已上传文件", value: "gallery" },
     { label: "工具箱", value: "toolbox" },
-  ];
+  ]
 });
 
 const isWipTab = computed(() => {
