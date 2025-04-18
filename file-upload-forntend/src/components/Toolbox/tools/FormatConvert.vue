@@ -8,14 +8,14 @@
           <!-- File Upload Area -->
           <div class="flex-item">
             <el-upload
-              ref="upload"
-              class="upload-demo"
-              drag
-              :auto-upload="false"
-              :on-change="handleFileSelect"
-              :on-remove="handleRemove"
-              :limit="1"
-              :show-file-list="false"
+                ref="upload"
+                class="upload-demo"
+                drag
+                :auto-upload="false"
+                :on-change="handleFileSelect"
+                :on-remove="handleRemove"
+                :limit="1"
+                :show-file-list="false"
             >
               <div class="upload-icon" style="margin-top: 20px;"></div>
               <div class="el-upload__text">
@@ -90,9 +90,9 @@
 
               <div class="convert-button-container">
                 <button
-                  @click="startConversion"
-                  :disabled="!selectedFile || !toFormat || isConverting"
-                  class="convert-button"
+                    @click="startConversion"
+                    :disabled="!selectedFile || !toFormat || isConverting"
+                    class="convert-button"
                 >
                   <span>开始转换</span>
                   <span v-show="isConverting" class="spinner"></span>
@@ -130,124 +130,128 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'FileConverter',
-  data() {
-    return {
-      selectedFile: null,
-      fileList: [],
-      uploadProgress: 0,
-      fromFormat: '',
-      toFormat: '',
-      isConverting: false,
-      showResultModal: false,
-      downloadLink: '',
-      downloadFileName: '',
-      conversionHistory: [
-        { id: 1, name: 'document.pdf', from: 'pdf', to: 'docx', date: '2023-05-15', size: '2.4 MB' },
-        { id: 2, name: 'presentation.pptx', from: 'pptx', to: 'pdf', date: '2023-05-10', size: '5.1 MB' },
-        { id: 3, name: 'image.jpg', from: 'jpg', to: 'png', date: '2023-05-05', size: '1.2 MB' }
-      ]
-    }
-  },
-  computed: {
-    detectedFormat() {
-      if (!this.selectedFile) return null
-      const extension = this.selectedFile.name.split('.').pop().toLowerCase()
-      const formatMap = {
-        'pdf': 'PDF',
-        'doc': 'Word (DOC)',
-        'docx': 'Word (DOCX)',
-        'ppt': 'PowerPoint (PPT)',
-        'pptx': 'PowerPoint (PPTX)',
-        'xls': 'Excel (XLS)',
-        'xlsx': 'Excel (XLSX)',
-        'jpg': 'JPG',
-        'jpeg': 'JPEG',
-        'png': 'PNG',
-        'gif': 'GIF',
-        'mp3': 'MP3',
-        'wav': 'WAV',
-        'mp4': 'MP4',
-        'mov': 'MOV',
-        'avi': 'AVI',
-        'txt': 'Text'
-      }
-      return formatMap[extension] ? { value: extension, text: formatMap[extension] } : { value: extension, text: extension.toUpperCase() }
-    }
-  },
-  methods: {
-    handleFileSelect(file, fileList) {
-      this.selectedFile = file.raw // 获取原始文件对象
-      this.fileList = fileList
-      if (this.selectedFile) {
-        this.simulateUploadProgress()
-        this.fromFormat = this.detectedFormat ? this.detectedFormat.value : ''
-      }
-    },
-    handleRemove() {
-      this.resetFileInput()
-    },
-    simulateUploadProgress() {
-      this.uploadProgress = 0
-      const interval = setInterval(() => {
-        this.uploadProgress += Math.random() * 10
-        if (this.uploadProgress >= 100) {
-          this.uploadProgress = 100
-          clearInterval(interval)
-        }
-      }, 200)
-    },
-    formatFileSize(bytes) {
-      if (bytes === 0) return '0 Bytes'
-      const k = 1024
-      const sizes = ['Bytes', 'KB', 'MB', 'GB']
-      const i = Math.floor(Math.log(bytes) / Math.log(k))
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-    },
-    resetFileInput() {
-      this.selectedFile = null
-      this.fileList = []
-      this.uploadProgress = 0
-      this.fromFormat = ''
-      this.toFormat = ''
-      this.$refs.upload.clearFiles() // 清空上传组件的文件列表
-    },
-    swapFormats() {
-      if (!this.selectedFile) return
-      const temp = this.fromFormat
-      this.fromFormat = this.toFormat
-      this.toFormat = temp
-    },
-    startConversion() {
-      if (!this.selectedFile || !this.toFormat) return
+<script lang="ts" setup>
+import { ref, computed } from 'vue';
 
-      this.isConverting = true
-      setTimeout(() => {
-        this.isConverting = false
-        
-        const newHistoryItem = {
-          id: Date.now(),
-          name: this.selectedFile.name,
-          from: this.fromFormat || this.selectedFile.name.split('.').pop(),
-          to: this.toFormat,
-          date: new Date().toISOString().split('T')[0],
-          size: this.formatFileSize(this.selectedFile.size)
-        }
-        
-        this.conversionHistory.unshift(newHistoryItem)
-        this.downloadLink = `data:application/octet-stream,${encodeURIComponent(this.selectedFile.name)}`
-        this.downloadFileName = `${this.selectedFile.name.split('.')[0]}.${this.toFormat}`
-        this.showResultModal = true
-      }, 2000)
-    },
-    newConversion() {
-      this.showResultModal = false
-      this.resetFileInput()
-    }
+// 定义响应式数据
+const selectedFile = ref<File | null>(null);
+const uploadProgress = ref(0);
+const fromFormat = ref('');
+const toFormat = ref('');
+const isConverting = ref(false);
+const showResultModal = ref(false);
+const downloadLink = ref('');
+const downloadFileName = ref('');
+const conversionHistory = ref([
+  { id: 1, name: 'document.pdf', from: 'pdf', to: 'docx', date: '2023-05-15', size: '2.4 MB' },
+  { id: 2, name: 'presentation.pptx', from: 'pptx', to: 'pdf', date: '2023-05-10', size: '5.1 MB' },
+  { id: 3, name: 'image.jpg', from: 'jpg', to: 'png', date: '2023-05-05', size: '1.2 MB' }
+]);
+
+// 计算属性：检测文件格式
+const detectedFormat = computed(() => {
+  if (!selectedFile.value) return null;
+  const extension = selectedFile.value.name.split('.').pop()?.toLowerCase() || '';
+  const formatMap: Record<string, string> = {
+    pdf: 'PDF',
+    doc: 'Word (DOC)',
+    docx: 'Word (DOCX)',
+    ppt: 'PowerPoint (PPT)',
+    pptx: 'PowerPoint (PPTX)',
+    xls: 'Excel (XLS)',
+    xlsx: 'Excel (XLSX)',
+    jpg: 'JPG',
+    jpeg: 'JPEG',
+    png: 'PNG',
+    gif: 'GIF',
+    mp3: 'MP3',
+    wav: 'WAV',
+    mp4: 'MP4',
+    mov: 'MOV',
+    avi: 'AVI',
+    txt: 'Text'
+  };
+  return formatMap[extension] ? { value: extension, text: formatMap[extension] } : { value: extension, text: extension.toUpperCase() };
+});
+
+// 方法：文件选择处理
+const handleFileSelect = (file: any, fileList: any[]) => {
+  selectedFile.value = file.raw; // 获取原始文件对象
+  if (selectedFile.value) {
+    simulateUploadProgress();
+    fromFormat.value = detectedFormat.value?.value || '';
   }
-}
+};
+
+// 方法：移除文件
+const handleRemove = () => {
+  resetFileInput();
+};
+
+// 方法：模拟上传进度
+const simulateUploadProgress = () => {
+  uploadProgress.value = 0;
+  const interval = setInterval(() => {
+    uploadProgress.value += Math.random() * 10;
+    if (uploadProgress.value >= 100) {
+      uploadProgress.value = 100;
+      clearInterval(interval);
+    }
+  }, 200);
+};
+
+// 方法：格式化文件大小
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+// 方法：重置文件输入
+const resetFileInput = () => {
+  selectedFile.value = null;
+  uploadProgress.value = 0;
+  fromFormat.value = '';
+  toFormat.value = '';
+};
+
+// 方法：交换格式
+const swapFormats = () => {
+  if (!selectedFile.value) return;
+  [fromFormat.value, toFormat.value] = [toFormat.value, fromFormat.value];
+};
+
+// 方法：开始转换
+const startConversion = () => {
+  if (!selectedFile.value || !toFormat.value) return;
+
+  isConverting.value = true;
+  setTimeout(() => {
+    isConverting.value = false;
+
+    const newHistoryItem = {
+      id: Date.now(),
+      name: selectedFile.value!.name,
+      from: fromFormat.value || selectedFile.value!.name.split('.').pop(),
+      to: toFormat.value,
+      date: new Date().toISOString().split('T')[0],
+      size: formatFileSize(selectedFile.value!.size)
+    };
+
+    conversionHistory.value.unshift(newHistoryItem);
+    downloadLink.value = `data:application/octet-stream,${encodeURIComponent(selectedFile.value!.name)}`;
+    downloadFileName.value = `${selectedFile.value!.name.split('.')[0]}.${toFormat.value}`;
+    showResultModal.value = true;
+  }, 2000);
+};
+
+// 方法：新转换
+const newConversion = () => {
+  showResultModal.value = false;
+  resetFileInput();
+};
 </script>
 
 <style scoped>

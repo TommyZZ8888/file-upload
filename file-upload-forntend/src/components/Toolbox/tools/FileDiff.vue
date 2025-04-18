@@ -21,51 +21,42 @@
       </div>
       <div class="diff-content">
         <code-diff-viewer
-          :new-content="processedNewStr"
-          :old-content="processedOldStr"
-          title="文本比对结果"
-          :language="'javascript'"
-          :theme="'light'"
-          :show-line-numbers="true"
-          :split-view="true"
-          :hide-line-numbers="false"
-          :context="3"
+            :new-content="processedNewStr"
+            :old-content="processedOldStr"
+            title="文本比对结果"
+            :language="'javascript'"
+            :theme="'light'"
+            :show-line-numbers="true"
+            :split-view="true"
+            :hide-line-numbers="false"
+            :context="3"
         />
       </div>
     </div>
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref } from 'vue'
 import CodeDiffViewer from '@jafri/vue-diff-view';
-import 'highlight.js/styles/github.css';
+import 'highlight.js/styles/github.css'
 
-export default {
-  name: 'FileDiff',
-  components: {
-    CodeDiffViewer
-  },
-  data() {
-    return {
-      showDiff: false,
-      oldStr: '',
-      newStr: '',
-      processedOldStr: '',
-      processedNewStr: ''
-    };
-  },
-  methods: {
-    processText(text) {
-      // 确保文本以换行符结尾
-      return text.trim() + '\n';
-    },
-    handleCompare() {
-      this.processedOldStr = this.processText(this.oldStr);
-      this.processedNewStr = this.processText(this.newStr);
-      this.showDiff = true;
-    }
-  }
-};
+const showDiff = ref(false)
+const oldStr = ref('')
+const newStr = ref('')
+const processedOldStr = ref('')
+const processedNewStr = ref('')
+
+const processText = (text: string): string => {
+  // 确保文本以换行符结尾
+  return text.trim() + '\n'
+}
+
+const handleCompare = () => {
+  processedOldStr.value = processText(oldStr.value)
+  processedNewStr.value = processText(newStr.value)
+  showDiff.value = true
+}
 </script>
 
 <style scoped>

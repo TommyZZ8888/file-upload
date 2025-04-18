@@ -2,18 +2,14 @@
   <div class="select-dir-container">
     <div class="input-wrapper">
       <el-input
-        v-model="displayValue"
-        :placeholder="placeholder"
-        class="dir-input"
-        @input="handleInputChange"
+          v-model="displayValue"
+          :placeholder="placeholder"
+          class="dir-input"
+          @input="handleInputChange"
       >
         <template #append>
           <el-button @click="toggleDropdown">
-            <i
-              :class="
-                isDropdownVisible ? 'el-icon-arrow-up' : 'el-icon-arrow-down'
-              "
-            ></i>
+            <i :class="isDropdownVisible ? 'el-icon-arrow-up' : 'el-icon-arrow-down'" />
           </el-button>
         </template>
       </el-input>
@@ -22,36 +18,33 @@
     <div class="dropdown-container" v-show="isDropdownVisible">
       <div class="tree-container">
         <el-tree
-          :data="treeData"
-          :props="defaultProps"
-          node-key="path"
-          :load="loadNode"
-          lazy
-          :expand-on-click-node="false"
-          @node-click="handleNodeClick"
-          ref="tree"
+            :data="treeData"
+            :props="defaultProps"
+            node-key="path"
+            :load="loadNode"
+            lazy
+            :expand-on-click-node="false"
+            @node-click="handleNodeClick"
+            ref="treeRef"
         >
           <template #default="{ node, data }">
             <span class="custom-tree-node">
               <template v-if="multiple">
                 <el-checkbox
-                  v-model="selectedPaths"
-                  :label="data.path"
-                  @change="handleCheckboxChange(data)"
-                  :disabled="!allowSelectFolder && data.folder"
-                >
-                </el-checkbox>
+                    v-model="selectedPaths"
+                    :label="data.path"
+                    @change="handleCheckboxChange(data)"
+                    :disabled="!allowSelectFolder && data.folder"
+                />
               </template>
               <template v-else>
                 <el-radio
-                  v-model="selectedPath"
-                  @change="handleRadioChange(data)"
-                  :disabled="!allowSelectFolder && data.folder"
-                ></el-radio>
+                    v-model="selectedPath"
+                    @change="handleRadioChange(data)"
+                    :disabled="!allowSelectFolder && data.folder"
+                />
               </template>
-              <i
-                :class="data.folder ? 'el-icon-folder' : 'el-icon-document'"
-              ></i>
+              <i :class="data.folder ? 'el-icon-folder' : 'el-icon-document'" />
               <span>{{ node.label }}</span>
             </span>
           </template>
@@ -61,128 +54,182 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, watch } from "vue";
-import { ElTree } from "element-plus";
-import { getLocalDrives, getFileTree } from "@/utils/api";
+<script setup>
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { getLocalDrives, getFileTree } from '@/utils/api';
 
-interface TreeNode {
-  path: string;
-  label: string;
-  folder: boolean;
-  children?: TreeNode[];
-}
-
-interface Props {
-  modelValue?: string | string[];
-  placeholder?: string;
-  multiple?: boolean;
-  allowSelectFolder?: boolean;
-}
-
-const props = withDefaults(defineProps<Props>(), {
-  modelValue: "",
-  placeholder: "请选择目录",
-  multiple: false,
-  allowSelectFolder: true,
+// 定义 Props
+const props = defineProps({
+  modelValue: {
+    type: [String, Array],
+    default: () => ''
+  },
+  showFiles: {
+    type: Boolean,
+    default: true
+  },
+  allowSelectFolder: {
+    type: Boolean,
+    default: true
+  },
+  multiple: {
+    type: Boolean,
+    default: false
+  }
 });
 
-const emit = defineEmits<{
-  (e: "update:modelValue", value: string | string[]): void;
-  (e: "change", value: string | string[]): void;
-}>();
+// 定义 Emits
+const emit = defineEmits(['update:modelValue', 'change']);
 
-const tree = ref<InstanceType<typeof ElTree>>();
-const displayValue = ref("");
+// 数据定义
+const treeData = ref([]);
 const isDropdownVisible = ref(false);
-const treeData = ref<TreeNode[]>([]);
-const selectedPath = ref("");
-const selectedPaths = ref<string[]>([]);
+const selectedPath = ref(props.multiple ? '' : props.modelValue);
+const selectedPaths = ref(props.multiple ? (Array.isArray(props.modelValue) ? props.modelValue : []) : []);
+const treeRef = ref(null);
 
-const defaultProps = {
-  children: "children",
-  label: "label",
-  isLeaf: "leaf",
-};
+// 计算属性
+const displayValue = computed(() => {
+  if (props.multiple) {
+    return selectedPaths.value.join(',');
+  }
+  return selectedPath.value;
+});
 
+const placeholder = computed(() => {
+  return props.multiple ? '请选择多个文件或目录' : '请输入或选择目录路径';
+});
+
+// 监听 Props 的变化
 watch(
-  () => props.modelValue,
-  (newVal) => {
-    if (props.multiple) {
-      selectedPaths.value = Array.isArray(newVal) ? newVal : [];
-      displayValue.value = selectedPaths.value.join(", ");
-    } else {
-      selectedPath.value = newVal as string;
-      displayValue.value = selectedPath.value;
-    }
-  },
-  { immediate: true }
+    () => props.modelValue,
+    (newVal) => {
+      if (props.multiple) {
+        selectedPaths.value = Array.isArray(newVal) ? newVal : [];
+      } else {
+        selectedPath.value = newVal;
+      }
+    },
+    { immediate: true }
 );
 
-const toggleDropdown = () => {
-  isDropdownVisible.value = !isDropdownVisible.value;
-};
-
-const handleInputChange = (value: string) => {
+// 监听 selectedPath 和 selectedPaths 的变化
+watch(selectedPath, (newVal) => {
   if (!props.multiple) {
-    emit("update:modelValue", value);
-    emit("change", value);
+    emit('update:modelValue', newVal);
+    emit('change', newVal);
   }
-};
+});
 
-const loadNode = async (node: any, resolve: (data: TreeNode[]) => void) => {
-  if (node.level === 0) {
-    // 加载根节点
-    try {
-      const res = await getLocalDrives();
-      if (res.code === 200) {
-        treeData.value = res.data.map((drive) => ({
-          name: drive,
-          path: drive,
-          folder: true,
-          children: null,
-        }));
-        resolve(treeData.value);
-      } else {
-        console.error("获取磁盘列表失败:", res.msg || "获取磁盘列表失败");
-        resolve([]);
+watch(
+    selectedPaths,
+    (newVal) => {
+      if (props.multiple) {
+        emit('update:modelValue', newVal);
+        emit('change', newVal);
       }
-    } catch (error) {
-      console.error("获取磁盘列表失败:", error);
+    },
+    { deep: true }
+);
+
+// 初始化磁盘列表
+async function initDrives() {
+  try {
+    const res = await getLocalDrives();
+    if (res.code === 200) {
+      treeData.value = res.data.map((drive) => ({
+        name: drive,
+        path: drive,
+        folder: true,
+        children: null
+      }));
+    } else {
+      ElMessage.error(res.msg || '获取磁盘列表失败');
+    }
+  } catch (error) {
+    console.error('获取磁盘列表失败:', error);
+    ElMessage.error('获取磁盘列表失败');
+  }
+}
+
+// 加载节点数据
+async function loadNode(node, resolve) {
+  if (node.level === 0) {
+    // 根节点，直接返回磁盘列表
+    return resolve(treeData.value);
+  }
+
+  try {
+    const res = await getFileTree(node.data.path, props.showFiles, true, 1);
+    if (res.code === 200) {
+      const children = res.data.children
+          ? res.data.children.map((item) => ({
+            name: item.name,
+            path: item.path,
+            folder: item.folder,
+            children: item.folder ? [] : null
+          }))
+          : [];
+      resolve(children);
+    } else {
+      ElMessage.error(res.msg || '获取目录内容失败');
       resolve([]);
     }
-  } else {
-    // TODO: 实现加载子节点的逻辑
+  } catch (error) {
+    console.error('获取目录内容失败:', error);
+    ElMessage.error('获取目录内容失败');
     resolve([]);
   }
-};
+}
 
-const handleNodeClick = (data: TreeNode) => {
+// 处理节点点击事件
+function handleNodeClick(data) {
   if (data.folder) {
-    tree.value.store.nodesMap[data.path].expanded =
-      !tree.value.store.nodesMap[data.path].expanded;
+    treeRef.value.store.nodesMap[data.path].expanded = !treeRef.value.store.nodesMap[data.path].expanded;
   }
-};
+}
 
-const handleRadioChange = (data: TreeNode) => {
-  if (!props.allowSelectFolder && data.folder) {
-    return;
-  }
+// 处理单选框变化
+function handleRadioChange(data) {
+  if (!props.allowSelectFolder && data.folder) return;
   selectedPath.value = data.path;
-  displayValue.value = data.path;
-  emit("update:modelValue", data.path);
-  emit("change", data.path);
   isDropdownVisible.value = false;
-};
+  emit('change', data.path);
+}
 
-const handleCheckboxChange = (data: TreeNode) => {
-  if (!props.allowSelectFolder && data.folder) {
-    return;
+// 处理复选框变化
+function handleCheckboxChange(data) {
+  if (!props.allowSelectFolder && data.folder) return;
+  emit('change', selectedPaths.value);
+}
+
+// 处理输入框变化
+function handleInputChange(value) {
+  emit('change', value);
+}
+
+// 切换下拉框显示状态
+function toggleDropdown() {
+  isDropdownVisible.value = !isDropdownVisible.value;
+}
+
+// 点击外部关闭下拉框
+function handleClickOutside(event) {
+  const container = document.querySelector('.select-dir-container');
+  if (!container.contains(event.target)) {
+    isDropdownVisible.value = false;
   }
-  displayValue.value = selectedPaths.value.join(", ");
-  emit("update:modelValue", selectedPaths.value);
-  emit("change", selectedPaths.value);
-};
+}
+
+// 生命周期钩子
+onMounted(() => {
+  initDrives();
+  document.addEventListener('click', handleClickOutside);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside);
+});
 </script>
 
 <style scoped>

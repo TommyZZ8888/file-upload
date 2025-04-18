@@ -1,3 +1,4 @@
+
 <template>
   <div class="grid grid-cols-2 gap-4">
     <div>
@@ -51,70 +52,78 @@
   </div>
 </template>
 
-<script>
-export default {
-  props: {
-    rules: {
-      type: Object,
-      required: true
-    }
-  },
-  data() {
-    return {
-      startNum: this.rules.startNum || 1,
-      step: this.rules.step || 1,
-      repeat: this.rules.repeat || 1,
-      digits: this.rules.digits || 1,
-      numberPosition: this.rules.numberPosition || 'start',
-      position: this.rules.position || 1,
-      padZero: this.rules.padZero !== undefined ? this.rules.padZero : true,
-      padChar: this.rules.padChar || '0',
-      format: this.rules.format || '{n}'
-    }
-  },
-  watch: {
-    startNum() { this.emitRules() },
-    step() { this.emitRules() },
-    repeat() { this.emitRules() },
-    digits() { this.emitRules() },
-    numberPosition() { this.emitRules() },
-    position() { this.emitRules() },
-    padZero() { this.emitRules() },
-    padChar() { this.emitRules() },
-    format() { this.emitRules() }
-  },
-  methods: {
-    previewNumber() {
-      let result = []
-      for (let i = 0; i < this.repeat; i++) {
-        const num = this.startNum + (i * this.step)
-        const paddedNum = this.padZero 
-          ? String(num).padStart(this.digits, this.padChar)
-          : String(num)
-        
-        const preview = this.format
-          .replace('{n}', paddedNum)
-          .replace('{name}', 'example')
-          .replace('{ext}', '.txt')
-        
-        result.push(preview)
-      }
+<script setup lang="ts">
+import { ref, watch, defineProps, defineEmits } from 'vue'
+import { ElMessage } from 'element-plus'
 
-      this.$message.success(`预览: ${result.join(', ')}`)
-    },
-    emitRules() {
-      this.$emit('updateRules', {
-        startNum: this.startNum,
-        step: this.step,
-        repeat: this.repeat,
-        digits: this.digits,
-        numberPosition: this.numberPosition,
-        position: this.position,
-        padZero: this.padZero,
-        padChar: this.padChar,
-        format: this.format
-      })
-    }
+interface Props {
+  rules: {
+    startNum?: number
+    step?: number
+    repeat?: number
+    digits?: number
+    numberPosition?: 'start' | 'end' | 'position' | 'replace'
+    position?: number
+    padZero?: boolean
+    padChar?: string
+    format?: string
   }
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits(['updateRules'])
+
+// 定义响应式数据
+const startNum = ref<number>(props.rules.startNum || 1)
+const step = ref<number>(props.rules.step || 1)
+const repeat = ref<number>(props.rules.repeat || 1)
+const digits = ref<number>(props.rules.digits || 1)
+const numberPosition = ref<'start' | 'end' | 'position' | 'replace'>(props.rules.numberPosition || 'start')
+const position = ref<number>(props.rules.position || 1)
+const padZero = ref<boolean>(props.rules.padZero !== undefined ? props.rules.padZero : true)
+const padChar = ref<string>(props.rules.padChar || '0')
+const format = ref<string>(props.rules.format || '{n}')
+
+// 监听所有数据的变化并触发更新
+watch(
+    [startNum, step, repeat, digits, numberPosition, position, padZero, padChar, format],
+    () => {
+      emitRules()
+    }
+)
+
+// 预览数字
+const previewNumber = () => {
+  const result: string[] = []
+  for (let i = 0; i < repeat.value; i++) {
+    const num = startNum.value + i * step.value
+    const paddedNum = padZero.value
+        ? String(num).padStart(digits.value, padChar.value)
+        : String(num)
+
+    const preview = format.value
+        .replace('{n}', paddedNum)
+        .replace('{name}', 'example')
+        .replace('{ext}', '.txt')
+
+    result.push(preview)
+  }
+
+  ElMessage.success(`预览: ${result.join(', ')}`)
+}
+
+// 触发规则更新事件
+const emitRules = () => {
+  emit('updateRules', {
+    startNum: startNum.value,
+    step: step.value,
+    repeat: repeat.value,
+    digits: digits.value,
+    numberPosition: numberPosition.value,
+    position: position.value,
+    padZero: padZero.value,
+    padChar: padChar.value,
+    format: format.value
+  })
 }
 </script>

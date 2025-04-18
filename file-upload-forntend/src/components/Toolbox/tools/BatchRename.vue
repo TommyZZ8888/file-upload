@@ -1,7 +1,7 @@
 <template>
   <div class="file-renamer">
     <SelectDir v-model="filePaths" @change="handlePathChange" :showFiles="true" :allowSelectFolder="false"
-      :multiple="true" style="width: 100%;" />
+               :multiple="true" style="width: 100%;" />
     <el-container>
       <el-main>
 
@@ -33,7 +33,7 @@
             <el-table-column label="→" width="50" align="center"></el-table-column>
             <el-table-column prop="new" label="新文件名" width="300"></el-table-column>
             <el-table-column label="操作" width="100">
-              <template slot-scope="scope">
+              <template #default="scope">
                 <el-button type="text" size="small" @click="removeFile(scope.$index)">
                   <i class="el-icon-close text-red-500"></i>
                 </el-button>
@@ -53,303 +53,349 @@
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import SelectDir from '@/components/SelectDir/SelectDir.vue'
 import InsertTab from './BatchRename/InsertTab.vue'
 import DeleteTab from './BatchRename/DeleteTab.vue'
 import NumberingTab from './BatchRename/NumberingTab.vue'
 import { batchRenameFile } from '@/utils/api'
 
-export default {
-  components: {
-    SelectDir,
-    InsertTab,
-    DeleteTab,
-    NumberingTab
-  },
-  data() {
+interface FileItem {
+  name: string
+  path: string
+}
+
+interface PreviewItem {
+  original: string
+  new: string
+  path: string
+}
+
+interface InsertRules {
+  position: string
+  text: string
+  searchText: string
+  replaceText: string
+  replaceOption: string
+  regexPattern: string
+  regexReplace: string
+  caseOption: string
+}
+
+interface DeleteRules {
+  deleteText: string
+  deleteOption: string
+  startPos: number
+  endPos: number
+  keepExt: boolean
+  deleteAllNames: boolean
+  removeAllExt: boolean
+  specificExt: string
+}
+
+interface NumberingRules {
+  startNum: number
+  step: number
+  repeat: number
+  digits: number
+  numberPosition: string
+  position: number
+  padZero: boolean
+  padChar: string
+  format: string
+}
+
+const files = ref<FileItem[]>([])
+const activeTab = ref<string>('insert')
+const isDragging = ref<boolean>(false)
+const filePaths = ref<string | string[]>('')
+
+// Insert/Replace tab rules
+const insertRules = ref<InsertRules>({
+  position: 'start',
+  text: '',
+  searchText: '',
+  replaceText: '',
+  replaceOption: 'all',
+  regexPattern: '',
+  regexReplace: '',
+  caseOption: ''
+})
+
+// Delete tab rules
+const deleteRules = ref<DeleteRules>({
+  deleteText: '',
+  deleteOption: 'all',
+  startPos: 0,
+  endPos: 0,
+  keepExt: true,
+  deleteAllNames: false,
+  removeAllExt: false,
+  specificExt: ''
+})
+
+// Numbering tab rules
+const numberingRules = ref<NumberingRules>({
+  startNum: 1,
+  step: 1,
+  repeat: 1,
+  digits: 1,
+  numberPosition: 'start',
+  position: 1,
+  padZero: true,
+  padChar: '0',
+  format: '{n}'
+})
+
+const previewData = computed<PreviewItem[]>(() => {
+  return files.value.map((file, index) => {
+    let newName = file.name
+    let ext = newName.includes('.') ? newName.substring(newName.lastIndexOf('.')) : ''
+    let nameWithoutExt = newName.includes('.') ? newName.substring(0, newName.lastIndexOf('.')) : newName
+    let num: number, paddedNum: string, formattedNum: string, pos: number
+
+    // Apply rules based on active tab
+    switch (activeTab.value) {
+      case 'insert':
+        // Insert/Replace rules
+        if (insertRules.value.text) {
+          if (insertRules.value.position === 'start') {
+            nameWithoutExt = insertRules.value.text + nameWithoutExt
+          } else if (insertRules.value.position === 'end') {
+            nameWithoutExt = nameWithoutExt + insertRules.value.text
+          }
+        }
+
+        if (insertRules.value.searchText && insertRules.value.replaceText) {
+          if (insertRules.value.replaceOption === 'all') {
+            const regex = new RegExp(insertRules.value.searchText, 'g')
+            nameWithoutExt = nameWithoutExt.replace(regex, insertRules.value.replaceText)
+          } else if (insertRules.value.replaceOption === 'first') {
+            const index = nameWithoutExt.indexOf(insertRules.value.searchText)
+            if (index !== -1) {
+              nameWithoutExt = nameWithoutExt.substring(0, index) +
+                  insertRules.value.replaceText +
+                  nameWithoutExt.substring(index + insertRules.value.searchText.length)
+            }
+          } else if (insertRules.value.replaceOption === 'last') {
+            const lastIndex = nameWithoutExt.lastIndexOf(insertRules.value.searchText)
+            if (lastIndex !== -1) {
+              nameWithoutExt = nameWithoutExt.substring(0, lastIndex) +
+                  insertRules.value.replaceText +
+                  nameWithoutExt.substring(lastIndex + insertRules.value.searchText.length)
+            }
+          }
+        }
+
+        if (insertRules.value.regexPattern && insertRules.value.regexReplace) {
+          try {
+            const regex = new RegExp(insertRules.value.regexPattern)
+            nameWithoutExt = nameWithoutExt.replace(regex, insertRules.value.regexReplace)
+          } catch (e) {
+            console.error('Invalid regex pattern:', e)
+          }
+        }
+
+        if (insertRules.value.caseOption) {
+          switch (insertRules.value.caseOption) {
+            case 'uppercase':
+              nameWithoutExt = nameWithoutExt.toUpperCase()
+              break
+            case 'lowercase':
+              nameWithoutExt = nameWithoutExt.toLowerCase()
+              break
+            case 'titlecase':
+              nameWithoutExt = nameWithoutExt.split(' ').map(word =>
+                  word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+              ).join(' ')
+              break
+          }
+        }
+        break
+
+      case 'delete':
+        // Delete rules
+        if (deleteRules.value.deleteText && nameWithoutExt) {
+          if (deleteRules.value.deleteOption === 'all') {
+            const regex = new RegExp(deleteRules.value.deleteText, 'g')
+            nameWithoutExt = nameWithoutExt.replace(regex, '')
+          } else if (deleteRules.value.deleteOption === 'first') {
+            const index = nameWithoutExt.indexOf(deleteRules.value.deleteText)
+            if (index !== -1) {
+              nameWithoutExt = nameWithoutExt.substring(0, index) +
+                  nameWithoutExt.substring(index + deleteRules.value.deleteText.length)
+            }
+          } else if (deleteRules.value.deleteOption === 'last') {
+            const lastIndex = nameWithoutExt.lastIndexOf(deleteRules.value.deleteText)
+            if (lastIndex !== -1) {
+              nameWithoutExt = nameWithoutExt.substring(0, lastIndex) +
+                  nameWithoutExt.substring(lastIndex + deleteRules.value.deleteText.length)
+            }
+          }
+        }
+
+        if (deleteRules.value.startPos && deleteRules.value.endPos) {
+          const start = Math.max(0, deleteRules.value.startPos - 1)
+          const end = Math.min(nameWithoutExt.length, deleteRules.value.endPos)
+          if (start < end) {
+            nameWithoutExt = nameWithoutExt.substring(0, start) + nameWithoutExt.substring(end)
+          }
+        }
+
+        if (deleteRules.value.deleteAllNames) {
+          nameWithoutExt = ''
+        }
+
+        if (deleteRules.value.removeAllExt) {
+          ext = ''
+        } else if (deleteRules.value.specificExt && ext.toLowerCase() === deleteRules.value.specificExt.toLowerCase()) {
+          ext = ''
+        }
+        break
+
+      case 'numbering':
+        // Numbering rules
+        num = numberingRules.value.startNum + (index * numberingRules.value.step)
+        paddedNum = numberingRules.value.padZero
+            ? String(num).padStart(numberingRules.value.digits, numberingRules.value.padChar)
+            : String(num)
+
+        formattedNum = numberingRules.value.format
+            .replace('{n}', paddedNum)
+            .replace('{name}', nameWithoutExt)
+            .replace('{ext}', ext)
+
+        switch (numberingRules.value.numberPosition) {
+          case 'start':
+            nameWithoutExt = paddedNum + nameWithoutExt
+            break
+          case 'end':
+            nameWithoutExt = nameWithoutExt + paddedNum
+            break
+          case 'position':
+            pos = Math.min(numberingRules.value.position - 1, nameWithoutExt.length)
+            nameWithoutExt = nameWithoutExt.substring(0, pos) + paddedNum + nameWithoutExt.substring(pos)
+            break
+          case 'replace':
+            nameWithoutExt = formattedNum
+            break
+        }
+        break
+    }
+
+    // Combine name and extension
+    newName = nameWithoutExt + (deleteRules.value.keepExt ? ext : '')
+
     return {
-      files: [],
-      activeTab: 'insert',
-      isDragging: false,
-      filePaths: '',
-      // Insert/Replace tab rules
-      insertRules: {
-        position: 'start',
-        text: '',
-        searchText: '',
-        replaceText: '',
-        replaceOption: 'all',
-        regexPattern: '',
-        regexReplace: '',
-        caseOption: ''
-      },
-      // Delete tab rules
-      deleteRules: {
-        deleteText: '',
-        deleteOption: 'all',
-        startPos: 0,
-        endPos: 0,
-        keepExt: true,
-        deleteAllNames: false,
-        removeAllExt: false,
-        specificExt: ''
-      },
-      // Numbering tab rules
-      numberingRules: {
-        startNum: 1,
-        step: 1,
-        repeat: 1,
-        digits: 1,
-        numberPosition: 'start',
-        position: 1,
-        padZero: true,
-        padChar: '0',
-        format: '{n}'
-      }
+      original: file.name,
+      new: newName,
+      path: file.path
     }
-  },
-  computed: {
-    previewData() {
-      return this.files.map((file, index) => {
-        let newName = file.name
-        let ext = newName.includes('.') ? newName.substring(newName.lastIndexOf('.')) : ''
-        let nameWithoutExt = newName.includes('.') ? newName.substring(0, newName.lastIndexOf('.')) : newName
-        let num, paddedNum, formattedNum, pos
-        
-        // Apply rules based on active tab
-        switch (this.activeTab) {
-          case 'insert':
-            // Insert/Replace rules
-            if (this.insertRules.text) {
-              if (this.insertRules.position === 'start') {
-                nameWithoutExt = this.insertRules.text + nameWithoutExt
-              } else if (this.insertRules.position === 'end') {
-                nameWithoutExt = nameWithoutExt + this.insertRules.text
-              }
-            }
-            
-            if (this.insertRules.searchText && this.insertRules.replaceText) {
-              if (this.insertRules.replaceOption === 'all') {
-                const regex = new RegExp(this.insertRules.searchText, 'g')
-                nameWithoutExt = nameWithoutExt.replace(regex, this.insertRules.replaceText)
-              } else if (this.insertRules.replaceOption === 'first') {
-                const index = nameWithoutExt.indexOf(this.insertRules.searchText)
-                if (index !== -1) {
-                  nameWithoutExt = nameWithoutExt.substring(0, index) + 
-                           this.insertRules.replaceText + 
-                           nameWithoutExt.substring(index + this.insertRules.searchText.length)
-                }
-              } else if (this.insertRules.replaceOption === 'last') {
-                const lastIndex = nameWithoutExt.lastIndexOf(this.insertRules.searchText)
-                if (lastIndex !== -1) {
-                  nameWithoutExt = nameWithoutExt.substring(0, lastIndex) + 
-                           this.insertRules.replaceText + 
-                           nameWithoutExt.substring(lastIndex + this.insertRules.searchText.length)
-                }
-              }
-            }
-            
-            if (this.insertRules.regexPattern && this.insertRules.regexReplace) {
-              try {
-                const regex = new RegExp(this.insertRules.regexPattern)
-                nameWithoutExt = nameWithoutExt.replace(regex, this.insertRules.regexReplace)
-              } catch (e) {
-                console.error('Invalid regex pattern:', e)
-              }
-            }
+  })
+})
 
-            if (this.insertRules.caseOption) {
-              switch (this.insertRules.caseOption) {
-                case 'uppercase':
-                  nameWithoutExt = nameWithoutExt.toUpperCase()
-                  break
-                case 'lowercase':
-                  nameWithoutExt = nameWithoutExt.toLowerCase()
-                  break
-                case 'titlecase':
-                  nameWithoutExt = nameWithoutExt.split(' ').map(word => 
-                    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-                  ).join(' ')
-                  break
-              }
-            }
-            break
+const handlePathChange = (newPaths: string | string[]) => {
+  filePaths.value = newPaths
 
-          case 'delete':
-            // Delete rules
-            if (this.deleteRules.deleteText && nameWithoutExt) {
-              if (this.deleteRules.deleteOption === 'all') {
-                const regex = new RegExp(this.deleteRules.deleteText, 'g')
-                nameWithoutExt = nameWithoutExt.replace(regex, '')
-              } else if (this.deleteRules.deleteOption === 'first') {
-                const index = nameWithoutExt.indexOf(this.deleteRules.deleteText)
-                if (index !== -1) {
-                  nameWithoutExt = nameWithoutExt.substring(0, index) + 
-                           nameWithoutExt.substring(index + this.deleteRules.deleteText.length)
-                }
-              } else if (this.deleteRules.deleteOption === 'last') {
-                const lastIndex = nameWithoutExt.lastIndexOf(this.deleteRules.deleteText)
-                if (lastIndex !== -1) {
-                  nameWithoutExt = nameWithoutExt.substring(0, lastIndex) + 
-                           nameWithoutExt.substring(lastIndex + this.deleteRules.deleteText.length)
-                }
-              }
-            }
+  // Handle both string and array inputs
+  const pathArray = Array.isArray(newPaths) ? newPaths : [newPaths]
 
-            if (this.deleteRules.startPos && this.deleteRules.endPos) {
-              const start = Math.max(0, this.deleteRules.startPos - 1)
-              const end = Math.min(nameWithoutExt.length, this.deleteRules.endPos)
-              if (start < end) {
-                nameWithoutExt = nameWithoutExt.substring(0, start) + nameWithoutExt.substring(end)
-              }
-            }
+  // Get the paths of currently selected files
+  const currentPaths = new Set(pathArray)
 
-            if (this.deleteRules.deleteAllNames) {
-              nameWithoutExt = ''
-            }
+  // Remove files that are no longer selected
+  files.value = files.value.filter(file => currentPaths.has(file.path))
 
-            if (this.deleteRules.removeAllExt) {
-              ext = ''
-            } else if (this.deleteRules.specificExt && ext.toLowerCase() === this.deleteRules.specificExt.toLowerCase()) {
-              ext = ''
-            }
-            break
-
-          case 'numbering':
-            // Numbering rules
-            num = this.numberingRules.startNum + (index * this.numberingRules.step)
-            paddedNum = this.numberingRules.padZero 
-              ? String(num).padStart(this.numberingRules.digits, this.numberingRules.padChar)
-              : String(num)
-            
-            formattedNum = this.numberingRules.format
-              .replace('{n}', paddedNum)
-              .replace('{name}', nameWithoutExt)
-              .replace('{ext}', ext)
-
-            switch (this.numberingRules.numberPosition) {
-              case 'start':
-                nameWithoutExt = paddedNum + nameWithoutExt
-                break
-              case 'end':
-                nameWithoutExt = nameWithoutExt + paddedNum
-                break
-              case 'position':
-                pos = Math.min(this.numberingRules.position - 1, nameWithoutExt.length)
-                nameWithoutExt = nameWithoutExt.substring(0, pos) + paddedNum + nameWithoutExt.substring(pos)
-                break
-              case 'replace':
-                nameWithoutExt = formattedNum
-                break
-            }
-            break
-        }
-
-        // Combine name and extension
-        newName = nameWithoutExt + (this.deleteRules.keepExt ? ext : '')
-        
-        return {
-          original: file.name,
-          new: newName,
-          path: file.path
-        }
-      })
-    }
-  },
-  methods: {
-    handlePathChange(newPaths) {
-      this.filePaths = newPaths
-      
-      // Handle both string and array inputs
-      const pathArray = Array.isArray(newPaths) ? newPaths : [newPaths]
-      
-      // Get the paths of currently selected files
-      const currentPaths = new Set(pathArray)
-      
-      // Remove files that are no longer selected
-      this.files = this.files.filter(file => currentPaths.has(file.path))
-      
-      // Add new files that weren't in the list before
-      const newFiles = pathArray
-        .filter(path => !this.files.some(file => file.path === path))
-        .map(path => ({
-          name: path.split('\\').pop(), // Get the last part of the path as filename
-          path: path // Store the full path
-        }))
-      
-      this.files.push(...newFiles)
-    },
-    handleDrop(e) {
-      this.unhighlight()
-      const newFiles = [...e.dataTransfer.files]
-      this.addFiles(newFiles)
-    },
-    handleFileInput() {
-      const newFiles = [...this.$refs.fileInput.files]
-      this.addFiles(newFiles)
-    },
-    highlight() {
-      this.isDragging = true
-    },
-    unhighlight() {
-      this.isDragging = false
-    },
-    addFiles(newFiles) {
-      newFiles = newFiles.filter(newFile =>
-        !this.files.some(f =>
-          f.name === newFile.name &&
-          f.size === newFile.size &&
-          f.lastModified === newFile.lastModified
-        )
-      )
-      this.files = [...this.files, ...newFiles]
-    },
-    removeFile(index) {
-      this.files.splice(index, 1)
-    },
-    clearFiles() {
-      this.files = []
-    },
-    reset() {
-      this.$message.success('所有重命名规则已重置')
-    },
-    rename() {
-      if (this.files.length === 0) {
-        this.$message.warning('请选择要重命名的文件')
-        return
-      }
-
-      // Prepare the data for the API call using the preview data
-      const fileRenames = this.previewData.map(file => ({
-        absolutePath: file.path,
-        newName: file.new
+  // Add new files that weren't in the list before
+  const newFiles = pathArray
+      .filter(path => !files.value.some(file => file.path === path))
+      .map(path => ({
+        name: path.split('\\').pop() || '', // Get the last part of the path as filename
+        path: path // Store the full path
       }))
 
-      // Call the backend API
-      batchRenameFile(fileRenames)
-        .then(response => {
-          console.log(response)
-          this.$message.success('文件重命名成功')
-          // Clear both the file list and SelectDir component
-          this.clearFiles()
-          this.filePaths = '' // Clear the SelectDir component
-        })
-        .catch(error => {
-          console.error('重命名失败:', error)
-          this.$message.error('文件重命名失败: ' + (error.message || '未知错误'))
-        })
-    },
-    updateInsertRules(rules) {
-      this.insertRules = { ...this.insertRules, ...rules }
-    },
-    updateDeleteRules(rules) {
-      this.deleteRules = { ...this.deleteRules, ...rules }
-    },
-    updateNumberingRules(rules) {
-      this.numberingRules = { ...this.numberingRules, ...rules }
-    }
+  files.value.push(...newFiles)
+}
+
+const handleDrop = (e: DragEvent) => {
+  unhighlight()
+  if (e.dataTransfer) {
+    const newFiles = [...e.dataTransfer.files]
+    addFiles(newFiles)
   }
+}
+
+const highlight = () => {
+  isDragging.value = true
+}
+
+const unhighlight = () => {
+  isDragging.value = false
+}
+
+const addFiles = (newFiles: File[]) => {
+  const filteredFiles = newFiles.filter(newFile =>
+      !files.value.some(f =>
+          f.name === newFile.name
+      )
+  )
+  files.value = [...files.value, ...filteredFiles.map(file => ({
+    name: file.name,
+    path: file.name // In a real app, you might want to use file.path or similar
+  }))]
+}
+
+const removeFile = (index: number) => {
+  files.value.splice(index, 1)
+}
+
+const clearFiles = () => {
+  files.value = []
+}
+
+const reset = () => {
+  ElMessage.success('所有重命名规则已重置')
+}
+
+const rename = () => {
+  if (files.value.length === 0) {
+    ElMessage.warning('请选择要重命名的文件')
+    return
+  }
+
+  // Prepare the data for the API call using the preview data
+  const fileRenames = previewData.value.map(file => ({
+    absolutePath: file.path,
+    newName: file.new
+  }))
+
+  // Call the backend API
+  batchRenameFile(fileRenames)
+      .then(response => {
+        console.log(response)
+        ElMessage.success('文件重命名成功')
+        // Clear both the file list and SelectDir component
+        clearFiles()
+        filePaths.value = '' // Clear the SelectDir component
+      })
+      .catch(error => {
+        console.error('重命名失败:', error)
+        ElMessage.error('文件重命名失败: ' + (error.message || '未知错误'))
+      })
+}
+
+const updateInsertRules = (rules: Partial<InsertRules>) => {
+  insertRules.value = { ...insertRules.value, ...rules }
+}
+
+const updateDeleteRules = (rules: Partial<DeleteRules>) => {
+  deleteRules.value = { ...deleteRules.value, ...rules }
+}
+
+const updateNumberingRules = (rules: Partial<NumberingRules>) => {
+  numberingRules.value = { ...numberingRules.value, ...rules }
 }
 </script>
 

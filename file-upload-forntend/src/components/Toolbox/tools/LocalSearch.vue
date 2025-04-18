@@ -26,7 +26,7 @@
         <el-table-column prop="name" label="文件名" width="200" />
         <el-table-column prop="path" label="路径" />
         <el-table-column label="操作" width="100">
-          <template slot-scope="scope">
+          <template #default="scope">
             <el-button type="text" @click="openLocalDir(scope.row.path)">位置</el-button>
           </template>
         </el-table-column>
@@ -40,107 +40,123 @@
   </div>
 </template>
 
-<script>
-import { getLocalDrives, buildIndex, localFileSearch, openDir } from '@/utils/api'
-export default {
-  name: 'LocalSearch',
-  data() {
-    return {
-      searchForm: {
-        drives: [],
-        keyword: ''
-      },
-      availableDrives: ['C:'],
-      searchResults: [],
-      searching: false,
-      searched: false,
-      progress: 0,
-      progressTimer: null
+<script lang="ts" setup>
+import { ref, onMounted, onUnmounted } from 'vue';
+import { ElMessage } from 'element-plus';
+import { getLocalDrives, buildIndex, localFileSearch, openDir } from '@/utils/api';
+
+// 定义响应式数据
+const searchForm = ref({
+  drives: [] as string[],
+  keyword: ''
+});
+const availableDrives = ref<string[]>(['C:']);
+const searchResults = ref<{ name: string; path: string }[]>([]);
+const searching = ref(false);
+const searched = ref(false);
+const progress = ref(0);
+let progressTimer: number | null = null;
+
+// 获取可用磁盘
+const fetchAvailableDrives = async () => {
+  try {
+    const res = await getLocalDrives();
+    if (res.code === 200) {
+      availableDrives.value = res.data;
+    } else {
+      ElMessage.error('获取磁盘列表失败');
     }
-  },
-  mounted() {
-    this.fetchAvailableDrives()
-  },
-  methods: {
-    async fetchAvailableDrives() {
-      const res = await getLocalDrives()
-      if (res.code === 200) {
-        this.availableDrives = res.data
-      } else {
-        this.$message.error('获取磁盘列表失败')
-        return
-      }
-    },
-    searchFiles() {
-      if (!this.searchForm.drives.length) {
-        this.$message.warning('请至少选择一个磁盘')
-        return
-      }
-      if (!this.searchForm.keyword.trim()) {
-        this.$message.warning('请输入关键字')
-        return
-      }
-
-      this.searching = true
-      this.searched = false
-      this.searchResults = []
-      this.progress = 0
-
-      // 开始进度条动画
-      this.startProgress()
-      buildIndex(this.searchForm.drives).then((res) => {
-        if (res.code === 200) {
-          localFileSearch(this.searchForm.keyword).then((res) => {
-            if (res.code === 200) {
-              this.searchResults = res.data
-                .filter(path => this.searchForm.drives.some(drive => path.startsWith(drive)))
-                .map(path => ({
-                  name: path.split('\\').pop(), // 提取文件名
-                  path: path
-                }))
-              this.searching = false
-              this.searched = true
-            } else {
-              this.$message.error('搜索失败')
-            }
-          })
-        }
-      }).finally(() => {
-        clearInterval(this.progressTimer)
-        this.progress = 100
-      })
-    },
-    startProgress() {
-      if (this.progressTimer) {
-        clearInterval(this.progressTimer)
-      }
-
-      let timeElapsed = 0
-      const totalTime = 60000 // 60秒
-
-      this.progressTimer = setInterval(() => {
-        timeElapsed += 500 // 每0.5秒更新一次
-
-        // 非匀速增长：前快后慢
-        const progressRatio = timeElapsed / totalTime
-        this.progress = Math.min(99, Math.floor(100 * (1 - Math.pow(1 - progressRatio, 2))))
-
-        if (timeElapsed >= totalTime) {
-          clearInterval(this.progressTimer)
-        }
-      }, 500)
-    },
-    openLocalDir(path) {
-      openDir(path)
-    }
-  },
-  beforeDestroy() {
-    // 清理定时器
-    if (this.progressTimer) {
-      clearInterval(this.progressTimer)
-    }
+  } catch (error) {
+    ElMessage.error('获取磁盘列表失败');
   }
-}
+};
+
+// 开始搜索文件
+const searchFiles = () => {
+  if (!searchForm.value.drives.length) {
+    ElMessage.warning('请至少选择一个磁盘');
+    return;
+  }
+  if (!searchForm.value.keyword.trim()) {
+    ElMessage.warning('请输入关键字');
+    return;
+  }
+
+  searching.value = true;
+  searched.value = false;
+  searchResults.value = [];
+  progress.value = 0;
+
+  // 启动进度条动画
+  startProgress();
+
+  buildIndex(searchForm.value.drives)
+      .then((res) => {
+        if (res.code === 200) {
+          return localFileSearch(searchForm.value.keyword);
+        }
+      })
+      .then((res) => {
+        if (res?.code === 200) {
+          searchResults.value = res.data
+              .filter((path: string) => searchForm.value.drives.some((drive) => path.startsWith(drive)))
+              .map((path: string) => ({
+                name: path.split('\\').pop() || '', // 提取文件名
+                path: path
+              }));
+          searched.value = true;
+        } else {
+          ElMessage.error('搜索失败');
+        }
+      })
+      .catch(() => {
+        ElMessage.error('搜索失败');
+      })
+      .finally(() => {
+        clearInterval(progressTimer as number);
+        progress.value = 100;
+        searching.value = false;
+      });
+};
+
+// 启动进度条动画
+const startProgress = () => {
+  if (progressTimer) {
+    clearInterval(progressTimer);
+  }
+
+  let timeElapsed = 0;
+  const totalTime = 60000; // 60秒
+
+  progressTimer = setInterval(() => {
+    timeElapsed += 500; // 每0.5秒更新一次
+
+    // 非匀速增长：前快后慢
+    const progressRatio = timeElapsed / totalTime;
+    progress.value = Math.min(99, Math.floor(100 * (1 - Math.pow(1 - progressRatio, 2))));
+
+    if (timeElapsed >= totalTime) {
+      clearInterval(progressTimer as number);
+    }
+  }, 500);
+};
+
+// 打开本地目录
+const openLocalDir = (path: string) => {
+  openDir(path);
+};
+
+// 清理定时器
+onUnmounted(() => {
+  if (progressTimer) {
+    clearInterval(progressTimer);
+  }
+});
+
+// 组件挂载时获取磁盘列表
+onMounted(() => {
+  fetchAvailableDrives();
+});
 </script>
 
 <style scoped>

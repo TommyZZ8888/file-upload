@@ -40,64 +40,73 @@
   </div>
 </template>
 
-<script>
-export default {
-  props: {
-    rules: {
-      type: Object,
-      required: true
-    }
-  },
-  data() {
-    return {
-      deleteText: this.rules.deleteText || '',
-      deleteOption: this.rules.deleteOption || 'all',
-      startPos: this.rules.startPos || 0,
-      endPos: this.rules.endPos || 0,
-      keepExt: this.rules.keepExt !== undefined ? this.rules.keepExt : true,
-      specificExt: this.rules.specificExt || ''
-    }
-  },
-  watch: {
-    deleteText() { this.emitRules() },
-    deleteOption() { this.emitRules() },
-    startPos() { this.emitRules() },
-    endPos() { this.emitRules() },
-    keepExt() { this.emitRules() },
-    specificExt() { this.emitRules() }
-  },
-  methods: {
-    deleteAllNames() {
-      this.$emit('updateRules', { ...this.getRules(), deleteAllNames: true })
-      this.$message.success('已删除所有文件名')
-    },
-    removeAllExt() {
-      this.$emit('updateRules', { ...this.getRules(), removeAllExt: true })
-      this.$message.success('已移除所有扩展名')
-    },
-    removeSpecificExt() {
-      if (!this.specificExt) {
-        this.$message.warning('请输入要移除的扩展名')
-        return
-      }
-      this.emitRules()
-      this.$message.success(`已移除扩展名 ${this.specificExt}`)
-    },
-    getRules() {
-      return {
-        deleteText: this.deleteText,
-        deleteOption: this.deleteOption,
-        startPos: this.startPos,
-        endPos: this.endPos,
-        keepExt: this.keepExt,
-        deleteAllNames: false,
-        removeAllExt: false,
-        specificExt: this.specificExt
-      }
-    },
-    emitRules() {
-      this.$emit('updateRules', this.getRules())
-    }
+<script setup lang="ts">
+import { ref, watch, defineProps, defineEmits } from 'vue'
+import { ElMessage } from 'element-plus'
+
+interface Props {
+  rules: {
+    deleteText?: string
+    deleteOption?: 'all' | 'first' | 'last'
+    startPos?: number
+    endPos?: number
+    keepExt?: boolean
+    specificExt?: string
   }
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits(['updateRules'])
+
+// 定义响应式数据
+const deleteText = ref(props.rules.deleteText || '')
+const deleteOption = ref<'all' | 'first' | 'last'>(props.rules.deleteOption || 'all')
+const startPos = ref<number>(props.rules.startPos || 0)
+const endPos = ref<number>(props.rules.endPos || 0)
+const keepExt = ref<boolean>(props.rules.keepExt !== undefined ? props.rules.keepExt : true)
+const specificExt = ref<string>(props.rules.specificExt || '')
+
+// 监听数据变化并触发 updateRules
+watch([deleteText, deleteOption, startPos, endPos, keepExt, specificExt], () => {
+  emitRules()
+})
+
+// 删除所有名称
+const deleteAllNames = () => {
+  emit('updateRules', { ...getRules(), deleteAllNames: true })
+  ElMessage.success('已删除所有文件名')
+}
+
+// 移除所有扩展名
+const removeAllExt = () => {
+  emit('updateRules', { ...getRules(), removeAllExt: true })
+  ElMessage.success('已移除所有扩展名')
+}
+
+// 移除特定扩展名
+const removeSpecificExt = () => {
+  if (!specificExt.value) {
+    ElMessage.warning('请输入要移除的扩展名')
+    return
+  }
+  emitRules()
+  ElMessage.success(`已移除扩展名 ${specificExt.value}`)
+}
+
+// 获取当前规则
+const getRules = () => ({
+  deleteText: deleteText.value,
+  deleteOption: deleteOption.value,
+  startPos: startPos.value,
+  endPos: endPos.value,
+  keepExt: keepExt.value,
+  deleteAllNames: false,
+  removeAllExt: false,
+  specificExt: specificExt.value
+})
+
+// 触发更新规则事件
+const emitRules = () => {
+  emit('updateRules', getRules())
 }
 </script>

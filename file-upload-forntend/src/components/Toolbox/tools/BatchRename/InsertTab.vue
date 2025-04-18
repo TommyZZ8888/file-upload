@@ -38,9 +38,27 @@
         </el-form-item>
         <el-form-item label="大小写">
           <el-button-group>
-            <el-button size="small" @click="handleCaseChange('uppercase')" :type="caseOption === 'uppercase' ? 'primary' : ''">全大写</el-button>
-            <el-button size="small" @click="handleCaseChange('lowercase')" :type="caseOption === 'lowercase' ? 'primary' : ''">全小写</el-button>
-            <el-button size="small" @click="handleCaseChange('titlecase')" :type="caseOption === 'titlecase' ? 'primary' : ''">标题格式</el-button>
+            <el-button
+                size="small"
+                @click="handleCaseChange('uppercase')"
+                :type="caseOption === 'uppercase' ? 'primary' : ''"
+            >
+              全大写
+            </el-button>
+            <el-button
+                size="small"
+                @click="handleCaseChange('lowercase')"
+                :type="caseOption === 'lowercase' ? 'primary' : ''"
+            >
+              全小写
+            </el-button>
+            <el-button
+                size="small"
+                @click="handleCaseChange('titlecase')"
+                :type="caseOption === 'titlecase' ? 'primary' : ''"
+            >
+              标题格式
+            </el-button>
           </el-button-group>
         </el-form-item>
       </el-form>
@@ -48,86 +66,62 @@
   </div>
 </template>
 
-<script>
-export default {
-  props: {
-    rules: {
-      type: Object,
-      required: true
-    }
-  },
-  data() {
-    return {
-      insertPosition: this.rules.position || 'start',
-      insertText: this.rules.text || '',
-      searchText: this.rules.searchText || '',
-      replaceText: this.rules.replaceText || '',
-      replaceOption: this.rules.replaceOption || 'all',
-      regexPattern: this.rules.regexPattern || '',
-      regexReplace: this.rules.regexReplace || '',
-      caseOption: this.rules.caseOption || ''
-    }
-  },
-  watch: {
-    insertPosition: {
-      handler(newVal) {
-        this.emitRulesUpdate(newVal)
-      }
-    },
-    insertText: {
-      handler(newVal) {
-        this.emitRulesUpdate(newVal)
-      }
-    },
-    searchText: {
-      handler(newVal) {
-        this.emitRulesUpdate(newVal)
-      }
-    },
-    replaceText: {
-      handler(newVal) {
-        this.emitRulesUpdate(newVal)
-      }
-    },
-    replaceOption: {
-      handler(newVal) {
-        this.emitRulesUpdate(newVal)
-      }
-    },
-    regexPattern: {
-      handler(newVal) {
-        this.emitRulesUpdate(newVal)
-      }
-    },
-    regexReplace: {
-      handler(newVal) {
-        this.emitRulesUpdate(newVal)
-      }
-    },
-    caseOption: {
-      handler(newVal) {
-        this.emitRulesUpdate(newVal)
-      }
-    }
-  },
-  methods: {
-    handleCaseChange(option) {
-      this.caseOption = this.caseOption === option ? '' : option
-      this.emitRulesUpdate()
-    },
-    emitRulesUpdate() {
-      this.$emit('updateRules', {
-        position: this.insertPosition,
-        text: this.insertText,
-        searchText: this.searchText,
-        replaceText: this.replaceText,
-        replaceOption: this.replaceOption,
-        regexPattern: this.regexPattern,
-        regexReplace: this.regexReplace,
-        caseOption: this.caseOption
-      })
-    }
+<script setup lang="ts">
+import { ref, watch, defineProps, defineEmits } from 'vue'
+import { ElMessage } from 'element-plus'
+
+interface Props {
+  rules: {
+    position?: 'start' | 'end' | 'position'
+    text?: string
+    searchText?: string
+    replaceText?: string
+    replaceOption?: 'all' | 'first' | 'last'
+    regexPattern?: string
+    regexReplace?: string
+    caseOption?: 'uppercase' | 'lowercase' | 'titlecase' | ''
   }
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits(['updateRules'])
+
+// 定义响应式数据
+const insertPosition = ref<'start' | 'end' | 'position'>(props.rules.position || 'start')
+const insertText = ref<string>(props.rules.text || '')
+const searchText = ref<string>(props.rules.searchText || '')
+const replaceText = ref<string>(props.rules.replaceText || '')
+const replaceOption = ref<'all' | 'first' | 'last'>(props.rules.replaceOption || 'all')
+const regexPattern = ref<string>(props.rules.regexPattern || '')
+const regexReplace = ref<string>(props.rules.regexReplace || '')
+const caseOption = ref<'uppercase' | 'lowercase' | 'titlecase' | ''>(props.rules.caseOption || '')
+
+// 监听所有数据的变化并触发更新
+watch(
+    [insertPosition, insertText, searchText, replaceText, replaceOption, regexPattern, regexReplace, caseOption],
+    () => {
+      emitRulesUpdate()
+    }
+)
+
+// 处理大小写选项切换
+const handleCaseChange = (option: 'uppercase' | 'lowercase' | 'titlecase') => {
+  caseOption.value = caseOption.value === option ? '' : option
+  emitRulesUpdate()
+}
+
+// 触发规则更新事件
+const emitRulesUpdate = () => {
+  emit('updateRules', {
+    position: insertPosition.value,
+    text: insertText.value,
+    searchText: searchText.value,
+    replaceText: replaceText.value,
+    replaceOption: replaceOption.value,
+    regexPattern: regexPattern.value,
+    regexReplace: regexReplace.value,
+    caseOption: caseOption.value
+  })
 }
 </script>
 
